@@ -1,4 +1,5 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useMemo } from "react";
+import { parseEnrichedFields } from "@/lib/utils";
 
 interface Lead {
   id: number;
@@ -51,6 +52,17 @@ export default function LeadDetailModal({ lead, onClose, onSave, onDismiss }: Pr
 
   const badge = scoreBadge(lead.score);
 
+  const { cleanDescription, enriched } = useMemo(
+    () => parseEnrichedFields(lead.description),
+    [lead.description]
+  );
+
+  const hasEnriched =
+    !!enriched.locality ||
+    !!enriched.employeeCount ||
+    !!enriched.revenue ||
+    (enriched.tags && enriched.tags.length > 0);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
@@ -85,8 +97,8 @@ export default function LeadDetailModal({ lead, onClose, onSave, onDismiss }: Pr
           </button>
         </div>
 
-        {/* Score + Category */}
-        <div className="px-6 py-3 flex items-center gap-3 border-b border-gray-800">
+        {/* Score + Category + Enriched badges */}
+        <div className="px-6 py-3 flex flex-wrap items-center gap-2 border-b border-gray-800">
           <span
             className={`px-3 py-1 rounded-full text-xs font-bold ${badge.color} ${badge.textColor}`}
           >
@@ -97,16 +109,86 @@ export default function LeadDetailModal({ lead, onClose, onSave, onDismiss }: Pr
               {lead.category_name}
             </span>
           )}
+
+          {/* Enriched field badges */}
+          {enriched.locality && (
+            <span className="text-xs text-teal-300 bg-teal-500/10 border border-teal-500/20 px-2 py-1 rounded-full flex items-center gap-1">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-teal-400">
+                <path d="M12 21s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 7.2C20 16.5 12 21 12 21z" stroke="currentColor" strokeWidth="2" />
+                <circle cx="12" cy="10" r="3" stroke="currentColor" strokeWidth="2" />
+              </svg>
+              {enriched.locality}
+            </span>
+          )}
+          {enriched.employeeCount && (
+            <span className="text-xs text-teal-300 bg-teal-500/10 border border-teal-500/20 px-2 py-1 rounded-full flex items-center gap-1">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-teal-400">
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              {enriched.employeeCount.toLocaleString()} employees
+            </span>
+          )}
+          {enriched.revenue && (
+            <span className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-full flex items-center gap-1">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-amber-400">
+                <path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              ~{enriched.revenue} est. revenue
+            </span>
+          )}
+
+          {/* Tags */}
+          {enriched.tags?.map((tag) => (
+            <span
+              key={tag}
+              className="text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded-full"
+            >
+              {tag}
+            </span>
+          ))}
         </div>
 
         {/* Body */}
         <div className="p-6 space-y-4">
+          {/* Enriched details card */}
+          {hasEnriched && (
+            <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                Company Insights
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                {enriched.locality && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-0.5">Location</p>
+                    <p className="text-sm text-white">{enriched.locality}</p>
+                  </div>
+                )}
+                {enriched.employeeCount && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-0.5">Employees</p>
+                    <p className="text-sm text-white">
+                      {enriched.employeeCount.toLocaleString()}
+                    </p>
+                  </div>
+                )}
+                {enriched.revenue && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-0.5">Est. Revenue</p>
+                    <p className="text-sm text-white">{enriched.revenue}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Description */}
           <div>
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
               About
             </h3>
-            <p className="text-gray-300 text-sm leading-relaxed">{lead.description}</p>
+            <p className="text-gray-300 text-sm leading-relaxed">
+              {cleanDescription || lead.description}
+            </p>
           </div>
 
           {/* Contact info */}

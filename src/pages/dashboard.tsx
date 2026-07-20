@@ -1,10 +1,11 @@
 import { GetServerSideProps } from "next";
 import { getAuth, buildClerkProps } from "@clerk/nextjs/server";
-import { ClerkProvider } from "@clerk/nextjs";
 import Head from "next/head";
 import { useState, useCallback, useEffect } from "react";
 import db from "@/lib/db";
 import LeadDetailModal from "@/components/LeadDetailModal";
+import PlanInfoBar from "@/components/PlanInfoBar";
+import GenerateLeadsButton from "@/components/GenerateLeadsButton";
 
 // -- types --------------------------------------------------
 
@@ -120,13 +121,14 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [dismissing, setDismissing] = useState<Set<number>>(new Set());
   const [currentPlanInfo, setCurrentPlanInfo] = useState<PlanInfo>(planInfo);
+  const [exporting, setExporting] = useState(false);
 
-  // Refresh plan info on mount / category change
+  // Refresh plan info on mount
   useEffect(() => {
-    fetch("/api/user/plan")
+    fetch("/api/leads", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
-        if (data.plan) setCurrentPlanInfo(data);
+        if (data.planInfo) setCurrentPlanInfo(data.planInfo);
       })
       .catch(() => {
         // use server-provided fallback
@@ -138,7 +140,9 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/leads?category=${encodeURIComponent(slug)}`);
+      const res = await fetch(`/api/leads?category=${encodeURIComponent(slug)}`, {
+        credentials: "include",
+      });
       if (!res.ok) throw new Error(`Server error (${res.status})`);
       const data = await res.json();
       setCurrentLeads(data.leads || []);
@@ -167,9 +171,9 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
   const handleSave = useCallback(async (id: number) => {
     setDismissing((prev) => new Set(prev).add(id));
     try {
-      await fetch(`/api/leads/${id}/save`, { method: "POST" });
+      await fetch(`/api/leads/${id}/save`, { method: "POST", credentials: "include" });
     } catch {
-      // silently fail — card stays removed optimistically
+      // silently fail
     }
     setCurrentLeads((prev) => prev.filter((l) => l.id !== id));
     setSelectedLead(null);
@@ -184,7 +188,7 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
   const handleDismiss = useCallback(async (id: number) => {
     setDismissing((prev) => new Set(prev).add(id));
     try {
-      await fetch(`/api/leads/${id}/dismiss`, { method: "POST" });
+      await fetch(`/api/leads/${id}/dismiss`, { method: "POST", credentials: "include" });
     } catch {
       // silently fail
     }
@@ -197,16 +201,58 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
     });
   }, []);
 
+  // Handle lead generation success
+  const handleGenerateSuccess = useCallback(
+    (data: {
+      generated: number;
+      leads: Lead[];
+      planInfo: PlanInfo;
+    }) => {
+      // Prepend new leads to the top
+      setCurrentLeads((prev) => {
+        const existingIds = new Set(prev.map((l) => l.id));
+        const newLeads = data.leads.filter((l) => !existingIds.has(l.id));
+        return [...newLeads, ...prev];
+      });
+      if (data.planInfo) setCurrentPlanInfo(data.planInfo);
+    },
+    []
+  );
+
+  const handlePlanInfoUpdate = useCallback((info: PlanInfo) => {
+    setCurrentPlanInfo(info);
+  }, []);
+
+  // Export CSV
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      const res = await fetch(
+        `/api/leads/export${selectedCategory ? `?category=${encodeURIComponent(selectedCategory)}` : ""}`,
+        { credentials: "include" }
+      );
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `sendwell-leads-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setError("Failed to export leads.");
+    } finally {
+      setExporting(false);
+    }
+  }, [selectedCategory]);
+
   // Derive which cards are being actioned (for opacity animation)
   const isAnimatingOut = (id: number) => dismissing.has(id);
 
-  // Quota usage bar
-  const quotaPercent = currentPlanInfo.leadsLimit > 0
-    ? Math.min(100, Math.round((currentPlanInfo.leadsUsed / currentPlanInfo.leadsLimit) * 100))
-    : 0;
-
   return (
-    <ClerkProvider>
+    <>
       <Head>
         <title>Dashboard - SendWell</title>
       </Head>
@@ -214,7 +260,7 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
       <main className="min-h-[calc(100vh-3.5rem)] bg-gray-950 p-4 sm:p-6 lg:p-8">
         <div className="max-w-6xl mx-auto">
           {/* Page header */}
-          <div className="mb-8">
+          <div className="mb-6">
             <h1 className="text-2xl sm:text-3xl font-bold text-white">Dashboard</h1>
             <p className="text-gray-400 text-sm mt-1">
               Browse qualified leads and grow your pipeline.
@@ -222,27 +268,15 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
           </div>
 
           {/* -- Plan usage bar ------------------------------ */}
-          <div className="mb-6 bg-gray-900 border border-gray-800 rounded-xl p-4">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm text-gray-400">
-                Plan: <span className="text-white font-semibold capitalize">{currentPlanInfo.plan}</span>
-              </p>
-              <p className="text-sm text-gray-400">
-                {currentPlanInfo.leadsUsed} / {currentPlanInfo.leadsLimit} leads used
-              </p>
-            </div>
-            <div className="w-full bg-gray-800 rounded-full h-2">
-              <div
-                className={`h-2 rounded-full transition-all duration-500 ${
-                  quotaPercent >= 90 ? "bg-red-500" : quotaPercent >= 70 ? "bg-amber-500" : "bg-teal-500"
-                }`}
-                style={{ width: `${quotaPercent}%` }}
-              />
-            </div>
-          </div>
+          <PlanInfoBar
+            plan={currentPlanInfo.plan}
+            leadsUsed={currentPlanInfo.leadsUsed}
+            leadsLimit={currentPlanInfo.leadsLimit}
+            resetsAt={currentPlanInfo.resetsAt}
+          />
 
           {/* -- Stats bar -------------------------------- */}
-          <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-8">
+          <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-6">
             {[
               { label: "Total Leads", value: stats.totalLeads, icon: StatIcons.total },
               { label: "This Week", value: stats.leadsThisWeek, icon: StatIcons.week },
@@ -261,50 +295,94 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
             ))}
           </div>
 
-          {/* -- Category selector ------------------------ */}
+          {/* -- Toolbar: category selector + buttons ----- */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-            <select
-              className="bg-gray-900 border border-gray-700 hover:border-gray-600 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 transition-colors disabled:opacity-50"
-              value={selectedCategory}
-              onChange={(e) => handleCategoryChange(e.target.value)}
-              disabled={loading}
-            >
-              <option value="">All Categories</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.slug}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-wrap items-center gap-3">
+              <select
+                className="bg-gray-900 border border-gray-700 hover:border-gray-600 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 transition-colors disabled:opacity-50"
+                value={selectedCategory}
+                onChange={(e) => handleCategoryChange(e.target.value)}
+                disabled={loading}
+              >
+                <option value="">All Categories</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.slug}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
 
-            <p className="text-gray-500 text-sm">
-              {loading ? (
-                <span className="inline-flex items-center gap-2">
-                  <svg
-                    className="animate-spin h-4 w-4 text-teal-400"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Loading leads...
-                </span>
-              ) : (
-                `${currentLeads.length} lead${currentLeads.length !== 1 ? "s" : ""} found`
-              )}
-            </p>
+              <p className="text-gray-500 text-sm">
+                {loading ? (
+                  <span className="inline-flex items-center gap-2">
+                    <svg
+                      className="animate-spin h-4 w-4 text-teal-400"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Loading leads...
+                  </span>
+                ) : (
+                  `${currentLeads.length} lead${currentLeads.length !== 1 ? "s" : ""} found`
+                )}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Generate Leads button */}
+              <GenerateLeadsButton
+                category={selectedCategory}
+                onSuccess={handleGenerateSuccess}
+                onPlanInfoUpdate={handlePlanInfoUpdate}
+                disabled={loading}
+              />
+
+              {/* Export CSV button */}
+              <button
+                onClick={handleExport}
+                disabled={exporting || currentLeads.length === 0}
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed text-gray-300 rounded-xl text-sm font-medium transition-all duration-200 border border-gray-700 hover:border-gray-600 active:scale-[0.98]"
+              >
+                {exporting ? (
+                  <>
+                    <svg
+                      className="animate-spin h-4 w-4"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Export CSV
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           {/* -- Error state ------------------------------ */}
           {error && (
             <div className="mb-6 bg-red-900/30 border border-red-800 rounded-xl p-4 flex items-center justify-between animate-slide-down">
               <p className="text-red-300 text-sm">
-                Failed to load leads: {error}
+                {error}
               </p>
               <button
-                onClick={() => selectedCategory && fetchLeads(selectedCategory)}
+                onClick={() => {
+                  setError(null);
+                  if (selectedCategory) fetchLeads(selectedCategory);
+                }}
                 className="text-sm px-3 py-1.5 bg-red-800 hover:bg-red-700 text-red-100 rounded-lg transition-colors"
               >
                 Retry
@@ -342,8 +420,9 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
                     No leads found
                   </h3>
                   <p className="text-gray-500 text-sm max-w-sm mx-auto">
-                    No leads available for this category right now. Try picking a
-                    different one — there might be better matches elsewhere.
+                    No leads available for this category yet. Select a category and
+                    click &ldquo;Generate Leads&rdquo; to find new prospects, or try a
+                    different category.
                   </p>
                 </>
               )}
@@ -425,7 +504,18 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
           onDismiss={handleDismiss}
         />
       )}
-    </ClerkProvider>
+    </>
+  );
+}
+
+// -- helpers ------------------------------------------------
+
+function isPlaceholderClerkKey(): boolean {
+  const key = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || "";
+  return (
+    !key ||
+    key.includes("placeholder") ||
+    key.startsWith("pk_test_dGhpcy1pcy1hLXBsYWNlaG9sZGVy")
   );
 }
 
@@ -433,9 +523,10 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
 
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const { userId } = getAuth(ctx.req);
+  const placeholderKeys = isPlaceholderClerkKey();
 
-  // Redirect to sign-in if not authenticated
-  if (!userId) {
+  // Redirect to sign-in if not authenticated AND Clerk is configured
+  if (!userId && !placeholderKeys) {
     return {
       redirect: {
         destination: "/sign-in",
@@ -444,6 +535,8 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     };
   }
 
+  // Use a default user ID for placeholder mode
+  const effectiveUserId = userId || "placeholder-user";
   const d = db();
 
   const categories = d.prepare("SELECT * FROM categories ORDER BY name").all() as Category[];
@@ -476,7 +569,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   ).cnt;
 
   // Get or create user plan
-  let plan = d.prepare("SELECT * FROM user_plans WHERE user_id = ?").get(userId) as {
+  let plan = d.prepare("SELECT * FROM user_plans WHERE user_id = ?").get(effectiveUserId) as {
     plan: string;
     leads_used_this_month: number;
     month_reset: string;
@@ -487,7 +580,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     const resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().slice(0, 10);
     d.prepare(
       "INSERT INTO user_plans (user_id, plan, leads_used_this_month, month_reset) VALUES (?, 'free', 0, ?)"
-    ).run(userId, resetDate);
+    ).run(effectiveUserId, resetDate);
     plan = { plan: "free", leads_used_this_month: 0, month_reset: resetDate };
   }
 
@@ -497,7 +590,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   if (now >= resetDate) {
     const newReset = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().slice(0, 10);
     d.prepare("UPDATE user_plans SET leads_used_this_month = 0, month_reset = ?, updated_at = datetime('now') WHERE user_id = ?")
-      .run(newReset, userId);
+      .run(newReset, effectiveUserId);
     plan.leads_used_this_month = 0;
     plan.month_reset = newReset;
   }
@@ -505,7 +598,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const planLimits: Record<string, number> = { free: 10, pro: 100, business: 500 };
   const leadsLimit = planLimits[plan.plan] || 10;
 
-  const planInfo: PlanInfo = {
+  const resolvedPlanInfo: PlanInfo = {
     plan: plan.plan,
     leadsUsed: plan.leads_used_this_month,
     leadsLimit,
@@ -518,7 +611,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
       categories,
       leads,
       stats: { totalLeads, leadsThisWeek, savedCount },
-      planInfo,
+      planInfo: resolvedPlanInfo,
     },
   };
 };
