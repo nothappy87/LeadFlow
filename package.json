@@ -1,0 +1,30 @@
+{
+  "name": "leadflow",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start",
+    "db:migrate": "npx tsx src/lib/migrate.ts",
+    "db:seed": "npx tsx src/lib/seed.ts",
+    "db:setup": "npx tsx src/lib/migrate.ts && npx tsx src/lib/seed.ts"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.7.0",
+    "next": "^14.2.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0"
+  }
+}
