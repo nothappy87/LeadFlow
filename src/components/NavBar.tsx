@@ -1,5 +1,14 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
+import dynamic from "next/dynamic";
+
+// Auth section is client-only to avoid Clerk SSR issues with placeholder keys
+const AuthSection = dynamic(() => import("@/components/AuthSection"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-8 h-8 rounded-full bg-gray-800 animate-pulse" />
+  ),
+});
 
 export default function NavBar() {
   const router = useRouter();
@@ -51,6 +60,7 @@ export default function NavBar() {
           >
             Dashboard
           </Link>
+          <AuthSection />
         </div>
       </div>
     </nav>

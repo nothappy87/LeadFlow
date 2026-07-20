@@ -5,8 +5,8 @@ import "@/styles/globals.css";
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
-  // Don't show nav on 404 or error pages - only on known routes
-  const showNav = router.pathname === "/" || router.pathname === "/dashboard";
+  // Only show nav on dashboard (which is SSR-only, so Clerk works there)
+  const showNav = router.pathname === "/dashboard";
 
   return (
     <>
