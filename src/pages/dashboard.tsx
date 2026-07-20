@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import db from "@/lib/db";
 import LeadDetailModal from "@/components/LeadDetailModal";
 
-// ── types ──────────────────────────────────────────────
+// -- types --------------------------------------------------
 
 interface Category {
   id: number;
@@ -39,7 +39,7 @@ interface Props {
   stats: Stats;
 }
 
-// ── helpers ────────────────────────────────────────────
+// -- helpers ------------------------------------------------
 
 function scoreBadge(score: number) {
   if (score >= 70) return { bg: "bg-green-600", label: "Hot", ring: "ring-green-500/30" };
@@ -47,7 +47,7 @@ function scoreBadge(score: number) {
   return { bg: "bg-red-600", label: "Cold", ring: "ring-red-500/30" };
 }
 
-// ── skeleton card ──────────────────────────────────────
+// -- skeleton card ------------------------------------------
 
 function SkeletonCard() {
   return (
@@ -71,7 +71,35 @@ function SkeletonCard() {
   );
 }
 
-// ── page component ─────────────────────────────────────
+// -- stat SVG icons -----------------------------------------
+
+const StatIcons = {
+  total: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-teal-400">
+      <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2" />
+      <path d="M3 9h18M9 21V9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  ),
+  week: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-teal-400">
+      <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2" />
+      <path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  ),
+  saved: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-amber-400">
+      <path
+        d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth="1"
+        strokeLinejoin="round"
+      />
+    </svg>
+  ),
+};
+
+// -- page component -----------------------------------------
 
 export default function Dashboard({ categories, leads: serverLeads, stats: serverStats }: Props) {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
@@ -111,13 +139,13 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
     }
   };
 
-  // Save lead — optimistically remove from view
+  // Save lead - optimistically remove from view
   const handleSave = useCallback(async (id: number) => {
     setDismissing((prev) => new Set(prev).add(id));
     try {
       await fetch(`/api/leads/${id}/save`, { method: "POST" });
     } catch {
-      // silently fail — card stays removed optimistically
+      // silently fail - card stays removed optimistically
     }
     setCurrentLeads((prev) => prev.filter((l) => l.id !== id));
     setSelectedLead(null);
@@ -128,7 +156,7 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
     });
   }, []);
 
-  // Dismiss lead — optimistically remove from view
+  // Dismiss lead - optimistically remove from view
   const handleDismiss = useCallback(async (id: number) => {
     setDismissing((prev) => new Set(prev).add(id));
     try {
@@ -151,7 +179,7 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
   return (
     <>
       <Head>
-        <title>Dashboard — LeadFlow</title>
+        <title>Dashboard - SendWell</title>
       </Head>
 
       <main className="min-h-[calc(100vh-3.5rem)] bg-gray-950 p-4 sm:p-6 lg:p-8">
@@ -164,19 +192,19 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
             </p>
           </div>
 
-          {/* ── Stats bar ──────────────────────────── */}
+          {/* -- Stats bar -------------------------------- */}
           <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-8">
             {[
-              { label: "Total Leads", value: stats.totalLeads, emoji: "📊" },
-              { label: "This Week", value: stats.leadsThisWeek, emoji: "📅" },
-              { label: "Saved", value: stats.savedCount, emoji: "⭐" },
+              { label: "Total Leads", value: stats.totalLeads, icon: StatIcons.total },
+              { label: "This Week", value: stats.leadsThisWeek, icon: StatIcons.week },
+              { label: "Saved", value: stats.savedCount, icon: StatIcons.saved },
             ].map((s) => (
               <div
                 key={s.label}
                 className="bg-gray-900 border border-gray-800 rounded-xl p-4 hover:border-gray-700 transition-colors"
               >
                 <p className="text-gray-500 text-xs sm:text-sm mb-1 flex items-center gap-1.5">
-                  <span className="hidden sm:inline">{s.emoji}</span>
+                  <span className="hidden sm:inline">{s.icon}</span>
                   {s.label}
                 </p>
                 <p className="text-xl sm:text-2xl font-bold text-white">{s.value}</p>
@@ -184,10 +212,10 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
             ))}
           </div>
 
-          {/* ── Category selector ──────────────────── */}
+          {/* -- Category selector ------------------------ */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <select
-              className="bg-gray-900 border border-gray-700 hover:border-gray-600 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-colors disabled:opacity-50"
+              className="bg-gray-900 border border-gray-700 hover:border-gray-600 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 transition-colors disabled:opacity-50"
               value={selectedCategory}
               onChange={(e) => handleCategoryChange(e.target.value)}
               disabled={loading}
@@ -204,7 +232,7 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
               {loading ? (
                 <span className="inline-flex items-center gap-2">
                   <svg
-                    className="animate-spin h-4 w-4 text-blue-400"
+                    className="animate-spin h-4 w-4 text-teal-400"
                     xmlns="http://www.w3.org/2000/svg"
                     fill="none"
                     viewBox="0 0 24 24"
@@ -212,7 +240,7 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  Loading leads…
+                  Loading leads...
                 </span>
               ) : (
                 `${currentLeads.length} lead${currentLeads.length !== 1 ? "s" : ""} found`
@@ -220,7 +248,7 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
             </p>
           </div>
 
-          {/* ── Error state ────────────────────────── */}
+          {/* -- Error state ------------------------------ */}
           {error && (
             <div className="mb-6 bg-red-900/30 border border-red-800 rounded-xl p-4 flex items-center justify-between animate-slide-down">
               <p className="text-red-300 text-sm">
@@ -235,12 +263,16 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
             </div>
           )}
 
-          {/* ── Empty states ───────────────────────── */}
+          {/* -- Empty states ----------------------------- */}
           {!loading && !error && currentLeads.length === 0 && (
             <div className="text-center py-16 animate-fade-in">
               {!selectedCategory ? (
                 <>
-                  <div className="text-5xl mb-4">👆</div>
+                  <div className="flex justify-center mb-4">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-teal-400">
+                      <path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
                   <h3 className="text-lg font-semibold text-white mb-2">
                     Pick a category to get started
                   </h3>
@@ -251,20 +283,25 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
                 </>
               ) : (
                 <>
-                  <div className="text-5xl mb-4">🔍</div>
+                  <div className="flex justify-center mb-4">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-teal-400">
+                      <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+                      <path d="M20 20l-3.5-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </div>
                   <h3 className="text-lg font-semibold text-white mb-2">
                     No leads found
                   </h3>
                   <p className="text-gray-500 text-sm max-w-sm mx-auto">
                     No leads available for this category right now. Try picking a
-                    different one — there might be better matches elsewhere.
+                    different one - there might be better matches elsewhere.
                   </p>
                 </>
               )}
             </div>
           )}
 
-          {/* ── Loading skeleton ───────────────────── */}
+          {/* -- Loading skeleton ------------------------- */}
           {loading && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {Array.from({ length: 6 }).map((_, i) => (
@@ -273,7 +310,7 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
             </div>
           )}
 
-          {/* ── Lead cards ─────────────────────────── */}
+          {/* -- Lead cards ------------------------------- */}
           {!loading && !error && currentLeads.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {currentLeads.map((lead) => {
@@ -282,14 +319,14 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
                 return (
                   <div
                     key={lead.id}
-                    className={`bg-gray-900 border border-gray-800 rounded-xl p-5 cursor-pointer transition-all duration-300 hover:border-blue-600/50 hover:shadow-lg hover:shadow-blue-600/5 group ${
+                    className={`bg-gray-900 border border-gray-800 rounded-xl p-5 cursor-pointer transition-all duration-300 hover:border-teal-600/50 hover:shadow-lg hover:shadow-teal-600/5 group ${
                       fading ? "opacity-0 scale-95" : "opacity-100 scale-100"
                     }`}
                     onClick={() => setSelectedLead(lead)}
                   >
                     <div className="flex justify-between items-start mb-3">
                       <div className="min-w-0 flex-1">
-                        <h3 className="font-semibold text-white truncate group-hover:text-blue-400 transition-colors">
+                        <h3 className="font-semibold text-white truncate group-hover:text-teal-400 transition-colors">
                           {lead.company_name}
                         </h3>
                         <p className="text-gray-500 text-sm truncate">
@@ -307,10 +344,10 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
                       {lead.description}
                     </p>
 
-                    {/* Action buttons — stop click propagation */}
+                    {/* Action buttons - stop click propagation */}
                     <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                       <button
-                        className="flex-1 text-xs px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white rounded-lg transition-all duration-200 font-medium"
+                        className="flex-1 text-xs px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white rounded-lg transition-all duration-200 font-medium"
                         onClick={() => handleSave(lead.id)}
                       >
                         Save
@@ -330,7 +367,7 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
         </div>
       </main>
 
-      {/* ── Lead detail modal ─────────────────────── */}
+      {/* -- Lead detail modal --------------------------- */}
       {selectedLead && (
         <LeadDetailModal
           lead={selectedLead}
@@ -343,7 +380,7 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
   );
 }
 
-// ── SSR data fetch ────────────────────────────────────
+// -- SSR data fetch ----------------------------------------
 
 export const getServerSideProps: GetServerSideProps<Props> = async () => {
   const d = db();

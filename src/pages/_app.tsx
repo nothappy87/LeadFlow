@@ -5,7 +5,7 @@ import "@/styles/globals.css";
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
-  // Don't show nav on 404 or error pages — only on known routes
+  // Don't show nav on 404 or error pages - only on known routes
   const showNav = router.pathname === "/" || router.pathname === "/dashboard";
 
   return (
