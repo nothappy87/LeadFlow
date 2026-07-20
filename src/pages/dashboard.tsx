@@ -1,6 +1,8 @@
 import { GetServerSideProps } from "next";
+import { getAuth, buildClerkProps } from "@clerk/nextjs/server";
+import { ClerkProvider } from "@clerk/nextjs";
 import Head from "next/head";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import db from "@/lib/db";
 import LeadDetailModal from "@/components/LeadDetailModal";
 
@@ -33,10 +35,18 @@ interface Stats {
   savedCount: number;
 }
 
+interface PlanInfo {
+  plan: string;
+  leadsUsed: number;
+  leadsLimit: number;
+  resetsAt: string;
+}
+
 interface Props {
   categories: Category[];
   leads: Lead[];
   stats: Stats;
+  planInfo: PlanInfo;
 }
 
 // -- helpers ------------------------------------------------
@@ -101,7 +111,7 @@ const StatIcons = {
 
 // -- page component -----------------------------------------
 
-export default function Dashboard({ categories, leads: serverLeads, stats: serverStats }: Props) {
+export default function Dashboard({ categories, leads: serverLeads, stats: serverStats, planInfo }: Props) {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [currentLeads, setCurrentLeads] = useState<Lead[]>(serverLeads);
   const [stats] = useState<Stats>(serverStats);
@@ -109,6 +119,19 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
   const [error, setError] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [dismissing, setDismissing] = useState<Set<number>>(new Set());
+  const [currentPlanInfo, setCurrentPlanInfo] = useState<PlanInfo>(planInfo);
+
+  // Refresh plan info on mount / category change
+  useEffect(() => {
+    fetch("/api/user/plan")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.plan) setCurrentPlanInfo(data);
+      })
+      .catch(() => {
+        // use server-provided fallback
+      });
+  }, []);
 
   // Fetch leads by category
   const fetchLeads = useCallback(async (slug: string) => {
@@ -119,6 +142,7 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
       if (!res.ok) throw new Error(`Server error (${res.status})`);
       const data = await res.json();
       setCurrentLeads(data.leads || []);
+      if (data.planInfo) setCurrentPlanInfo(data.planInfo);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Something went wrong";
       setError(message);
@@ -139,13 +163,13 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
     }
   };
 
-  // Save lead - optimistically remove from view
+  // Save lead — optimistically remove from view
   const handleSave = useCallback(async (id: number) => {
     setDismissing((prev) => new Set(prev).add(id));
     try {
       await fetch(`/api/leads/${id}/save`, { method: "POST" });
     } catch {
-      // silently fail - card stays removed optimistically
+      // silently fail — card stays removed optimistically
     }
     setCurrentLeads((prev) => prev.filter((l) => l.id !== id));
     setSelectedLead(null);
@@ -156,7 +180,7 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
     });
   }, []);
 
-  // Dismiss lead - optimistically remove from view
+  // Dismiss lead — optimistically remove from view
   const handleDismiss = useCallback(async (id: number) => {
     setDismissing((prev) => new Set(prev).add(id));
     try {
@@ -176,8 +200,13 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
   // Derive which cards are being actioned (for opacity animation)
   const isAnimatingOut = (id: number) => dismissing.has(id);
 
+  // Quota usage bar
+  const quotaPercent = currentPlanInfo.leadsLimit > 0
+    ? Math.min(100, Math.round((currentPlanInfo.leadsUsed / currentPlanInfo.leadsLimit) * 100))
+    : 0;
+
   return (
-    <>
+    <ClerkProvider>
       <Head>
         <title>Dashboard - SendWell</title>
       </Head>
@@ -190,6 +219,26 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
             <p className="text-gray-400 text-sm mt-1">
               Browse qualified leads and grow your pipeline.
             </p>
+          </div>
+
+          {/* -- Plan usage bar ------------------------------ */}
+          <div className="mb-6 bg-gray-900 border border-gray-800 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm text-gray-400">
+                Plan: <span className="text-white font-semibold capitalize">{currentPlanInfo.plan}</span>
+              </p>
+              <p className="text-sm text-gray-400">
+                {currentPlanInfo.leadsUsed} / {currentPlanInfo.leadsLimit} leads used
+              </p>
+            </div>
+            <div className="w-full bg-gray-800 rounded-full h-2">
+              <div
+                className={`h-2 rounded-full transition-all duration-500 ${
+                  quotaPercent >= 90 ? "bg-red-500" : quotaPercent >= 70 ? "bg-amber-500" : "bg-teal-500"
+                }`}
+                style={{ width: `${quotaPercent}%` }}
+              />
+            </div>
           </div>
 
           {/* -- Stats bar -------------------------------- */}
@@ -294,7 +343,7 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
                   </h3>
                   <p className="text-gray-500 text-sm max-w-sm mx-auto">
                     No leads available for this category right now. Try picking a
-                    different one - there might be better matches elsewhere.
+                    different one — there might be better matches elsewhere.
                   </p>
                 </>
               )}
@@ -344,7 +393,7 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
                       {lead.description}
                     </p>
 
-                    {/* Action buttons - stop click propagation */}
+                    {/* Action buttons — stop click propagation */}
                     <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                       <button
                         className="flex-1 text-xs px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white rounded-lg transition-all duration-200 font-medium"
@@ -376,13 +425,25 @@ export default function Dashboard({ categories, leads: serverLeads, stats: serve
           onDismiss={handleDismiss}
         />
       )}
-    </>
+    </ClerkProvider>
   );
 }
 
 // -- SSR data fetch ----------------------------------------
 
-export const getServerSideProps: GetServerSideProps<Props> = async () => {
+export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
+  const { userId } = getAuth(ctx.req);
+
+  // Redirect to sign-in if not authenticated
+  if (!userId) {
+    return {
+      redirect: {
+        destination: "/sign-in",
+        permanent: false,
+      },
+    };
+  }
+
   const d = db();
 
   const categories = d.prepare("SELECT * FROM categories ORDER BY name").all() as Category[];
@@ -414,11 +475,50 @@ export const getServerSideProps: GetServerSideProps<Props> = async () => {
     d.prepare("SELECT COUNT(*) as cnt FROM leads WHERE status = 'saved'").get() as { cnt: number }
   ).cnt;
 
+  // Get or create user plan
+  let plan = d.prepare("SELECT * FROM user_plans WHERE user_id = ?").get(userId) as {
+    plan: string;
+    leads_used_this_month: number;
+    month_reset: string;
+  } | undefined;
+
+  if (!plan) {
+    const now = new Date();
+    const resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().slice(0, 10);
+    d.prepare(
+      "INSERT INTO user_plans (user_id, plan, leads_used_this_month, month_reset) VALUES (?, 'free', 0, ?)"
+    ).run(userId, resetDate);
+    plan = { plan: "free", leads_used_this_month: 0, month_reset: resetDate };
+  }
+
+  // Check if monthly reset needed
+  const now = new Date();
+  const resetDate = new Date(plan.month_reset);
+  if (now >= resetDate) {
+    const newReset = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().slice(0, 10);
+    d.prepare("UPDATE user_plans SET leads_used_this_month = 0, month_reset = ?, updated_at = datetime('now') WHERE user_id = ?")
+      .run(newReset, userId);
+    plan.leads_used_this_month = 0;
+    plan.month_reset = newReset;
+  }
+
+  const planLimits: Record<string, number> = { free: 10, pro: 100, business: 500 };
+  const leadsLimit = planLimits[plan.plan] || 10;
+
+  const planInfo: PlanInfo = {
+    plan: plan.plan,
+    leadsUsed: plan.leads_used_this_month,
+    leadsLimit,
+    resetsAt: plan.month_reset,
+  };
+
   return {
     props: {
+      ...buildClerkProps(ctx.req),
       categories,
       leads,
       stats: { totalLeads, leadsThisWeek, savedCount },
+      planInfo,
     },
   };
 };

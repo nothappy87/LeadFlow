@@ -24,12 +24,23 @@ function migrate() {
       FOREIGN KEY (category_id) REFERENCES categories(id)
     );
 
+    CREATE TABLE IF NOT EXISTS user_plans (
+      user_id TEXT PRIMARY KEY,
+      plan TEXT NOT NULL DEFAULT 'free' CHECK(plan IN ('free', 'pro', 'business')),
+      leads_used_this_month INTEGER DEFAULT 0,
+      month_reset TEXT,
+      stripe_customer_id TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_leads_category ON leads(category_id);
     CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
     CREATE INDEX IF NOT EXISTS idx_leads_score ON leads(score);
+    CREATE INDEX IF NOT EXISTS idx_user_plans_plan ON user_plans(plan);
   `);
 
-  console.log("Migration complete: categories and leads tables ready.");
+  console.log("Migration complete: categories, leads, and user_plans tables ready.");
 }
 
 migrate();
