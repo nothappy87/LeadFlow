@@ -117,7 +117,7 @@ export default function LeadDetailModal({ lead, onClose, onSave, onDismiss }: Pr
               </h3>
               <a
                 href={`mailto:${lead.email}`}
-                className="text-blue-400 hover:text-blue-300 text-sm transition-colors"
+                className="text-teal-400 hover:text-teal-300 text-sm transition-colors"
               >
                 {lead.email}
               </a>
@@ -128,7 +128,7 @@ export default function LeadDetailModal({ lead, onClose, onSave, onDismiss }: Pr
               </h3>
               <a
                 href={`tel:${lead.phone}`}
-                className="text-blue-400 hover:text-blue-300 text-sm transition-colors"
+                className="text-teal-400 hover:text-teal-300 text-sm transition-colors"
               >
                 {lead.phone}
               </a>
@@ -146,7 +146,7 @@ export default function LeadDetailModal({ lead, onClose, onSave, onDismiss }: Pr
           </button>
           <button
             onClick={() => onSave(lead.id)}
-            className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition-colors"
+            className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-teal-600 hover:bg-teal-500 rounded-xl transition-colors"
           >
             Save Lead
           </button>
