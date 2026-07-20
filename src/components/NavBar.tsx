@@ -60,6 +60,16 @@ export default function NavBar() {
           >
             Dashboard
           </Link>
+          <Link
+            href="/#pricing"
+            className={`text-sm font-medium transition-colors ${
+              router.pathname === "/" && router.asPath.includes("pricing")
+                ? "text-teal-400"
+                : "text-gray-400 hover:text-white"
+            }`}
+          >
+            Pricing
+          </Link>
           <AuthSection />
         </div>
       </div>

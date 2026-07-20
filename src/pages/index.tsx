@@ -1,5 +1,29 @@
 import Head from "next/head";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+import { isPlaceholderClerkKey } from "@/lib/utils";
+import ConfigureClerkBanner from "@/components/ConfigureClerkBanner";
+
+// Auth-aware CTA section — client-only to avoid Clerk SSR issues with placeholder keys
+const HeroCTA = dynamic(() => import("@/components/HeroCTA"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex flex-col sm:flex-row gap-4 justify-center">
+      <Link
+        href="/sign-up"
+        className="px-8 py-3.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-base font-semibold transition-all duration-200 hover:shadow-lg hover:shadow-amber-500/25 active:scale-[0.98]"
+      >
+        Get Started - It&apos;s Free
+      </Link>
+      <Link
+        href="/dashboard"
+        className="px-8 py-3.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl text-base font-medium text-gray-300 transition-all duration-200 active:scale-[0.98]"
+      >
+        View Demo Leads
+      </Link>
+    </div>
+  ),
+});
 
 const features = [
   {
@@ -53,7 +77,7 @@ const pricingTiers = [
     period: "/mo",
     features: ["10 leads/month", "5 categories", "Basic scoring"],
     cta: "Get Started Free",
-    href: "/dashboard",
+    href: "/sign-up",
     highlight: false,
   },
   {
@@ -77,6 +101,8 @@ const pricingTiers = [
 ];
 
 export default function Home() {
+  const showConfigBanner = isPlaceholderClerkKey();
+
   return (
     <>
       <Head>
@@ -91,6 +117,13 @@ export default function Home() {
         {/* Hero */}
         <section className="flex-1 flex flex-col items-center justify-center px-6 py-20 text-center bg-gradient-to-b from-gray-900 via-gray-900 to-gray-950">
           <div className="animate-slide-up max-w-2xl">
+            {/* Configure Clerk banner */}
+            {showConfigBanner && (
+              <div className="mb-6">
+                <ConfigureClerkBanner />
+              </div>
+            )}
+
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-teal-600/10 border border-teal-600/30 text-teal-400 text-sm font-medium mb-8">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75" />
@@ -112,20 +145,7 @@ export default function Home() {
               industry and start closing.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                href="/dashboard"
-                className="px-8 py-3.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-base font-semibold transition-all duration-200 hover:shadow-lg hover:shadow-amber-500/25 active:scale-[0.98]"
-              >
-                Get Started - It&apos;s Free
-              </Link>
-              <Link
-                href="/dashboard"
-                className="px-8 py-3.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl text-base font-medium text-gray-300 transition-all duration-200 active:scale-[0.98]"
-              >
-                View Demo Leads
-              </Link>
-            </div>
+            <HeroCTA />
           </div>
         </section>
 
@@ -155,7 +175,7 @@ export default function Home() {
         </section>
 
         {/* Pricing */}
-        <section className="px-6 py-20 bg-gray-900">
+        <section id="pricing" className="px-6 py-20 bg-gray-900">
           <div className="max-w-5xl mx-auto">
             <h2 className="text-2xl sm:text-3xl font-bold text-center text-white mb-4">
               Simple, transparent pricing
